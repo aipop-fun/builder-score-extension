@@ -1,361 +1,500 @@
-import '../style/styles.css';
-import { NameResolver } from '../services/nameResolver';
-import { CachedName, TextTriggerPattern, RegexTriggerPattern, TriggerPattern } from '../types';
+import PopupComponent from "@/components/PopupComponent";
 
-const resolver = new NameResolver();
+// Types and Interfaces
+interface PassportData {
+    passport_id: string;
+    activity_score: number;
+    calculating_score: boolean;
+    created_at: string;
+    human_checkmark: boolean;
+    identity_score: number;
+    last_calculated_at: string;
+    main_wallet: string;
+    main_wallet_changed_at: string;
+    onchain: boolean;
+    score: number;
+    skills_score: number;
+    socials_calculated_at: string;
+    verified: boolean;
+}
 
-const log = {
-    info: (message: string, ...args: any[]) => {
-        console.log(`%c[Farcaster]%c ${message}`, 'color: #855DCD; font-weight: bold;', '', ...args);
+interface BuilderScoreData {
+    score: number;
+    verified: boolean;
+    displayName: string;
+    bio: string;
+    imageUrl: string;
+    socialProfiles: {
+        github?: Social;
+        twitter?: Social;
+        farcaster?: Social;
+    };
+    skills: {
+        activity: number;
+        identity: number;
+        skills: number;
+    };
+    lastUpdated: string;
+}
+
+interface BuilderScoreResponse {
+    success: boolean;
+    data?: {
+        score: number;
+        verified: boolean;
+    };
+    error?: string;
+}
+
+// Configuration
+const CONFIG = {
+    DEBUG: true,
+    MUTATION_DEBOUNCE: 500,
+    BADGE_UPDATE_COOLDOWN: 2000,
+    SELECTORS: {
+        TWITTER: {
+            PROFILE_NAME: 'div[data-testid="UserName"], h2[role="heading"], div[data-testid="UserCell"]',
+            DISPLAY_NAME: 'div[dir="ltr"]'
+        },
+        WARPCAST: {
+            TAGS: 'div.flex.flex-row.items-center.space-x-2',
+            USERNAME: 'div.text-muted'
+        }
     },
-    error: (message: string, ...args: any[]) => {
-        console.error(`%c[Farcaster]%c ${message}`, 'color: #ff4444; font-weight: bold;', '', ...args);
+    PLATFORMS: {
+        TWITTER: 'twitter',
+        WARPCAST: 'warpcast'
     }
-};
+} as const;
 
-const ADDRESS_PATTERNS = {
-    // Complete address in explorer URLs
-    EXPLORER_URL: /\/address\/(0x[a-fA-F0-9]{40})/i,
-    // Shortened address (0x1...234)
-    SHORTENED: /^0x[a-fA-F0-9]{1,3}\.{3}[a-fA-F0-9]{3}$/i,
-    // Full address
-    FULL: /0x[a-fA-F0-9]{40}/i,
-    // Last characters only (123abc)
-    LAST_CHARS: /^[a-fA-F0-9]{6}$/i
-};
+// Logger Service
+class Logger {
+    private readonly debug: boolean;
 
-interface AddressInfo {
-    fullAddress: string;
-    element: Element;
-    displayText: string;
-}
+    constructor(debug: boolean) {
+        this.debug = debug;
+    }
 
-function extractAddressFromExplorerUrl(url: string): string | null {
-    const match = url.match(ADDRESS_PATTERNS.EXPLORER_URL);
-    return match ? match[1].toLowerCase() : null;
-}
-
-function findTextNodesWithAddresses(element: Element): Text[] {
-    const walker = document.createTreeWalker(
-        element,
-        NodeFilter.SHOW_TEXT,
-        {
-            acceptNode: (node) => {
-                const text = node.textContent?.trim() || '';
-                return (ADDRESS_PATTERNS.SHORTENED.test(text) ||
-                    ADDRESS_PATTERNS.FULL.test(text) ||
-                    ADDRESS_PATTERNS.LAST_CHARS.test(text))
-                    ? NodeFilter.FILTER_ACCEPT
-                    : NodeFilter.FILTER_REJECT;
-            }
+    log(...args: any[]): void {
+        if (this.debug) {
+            console.log('%c[BuilderScore]', 'color: #8b5cf6;', ...args);
         }
-    );
-
-    const textNodes: Text[] = [];
-    let node;
-    while (node = walker.nextNode()) {
-        textNodes.push(node as Text);
     }
-    return textNodes;
-}
 
-function findAddressMappings(): AddressInfo[] {
-    const mappings: AddressInfo[] = [];
-    const processed = new Set<string>();
-
-    try {
-        const explorerLinks = Array.from(document.querySelectorAll('a[href*="/address/0x"]'));
-
-        for (const link of explorerLinks) {
-            const href = link.getAttribute('href');
-            if (!href) continue;
-
-            const fullAddress = extractAddressFromExplorerUrl(href);
-            if (!fullAddress) continue;
-
-            // Search parent elements for shortened addresses
-            const parentElement = link.closest('tr') || link.closest('div');
-            if (!parentElement) continue;
-
-            const textNodes = findTextNodesWithAddresses(parentElement);
-
-            for (const textNode of textNodes) {
-                const text = textNode.textContent?.trim() || '';
-                const elementKey = `${fullAddress}-${text}`;
-
-                if (processed.has(elementKey)) continue;
-
-                // Process only if it matches our criteria
-                if (ADDRESS_PATTERNS.SHORTENED.test(text) ||
-                    text.toLowerCase() === fullAddress.slice(-6)) {
-
-                    let element = textNode.parentElement;
-                    if (!element) continue;
-
-                    mappings.push({
-                        fullAddress,
-                        element,
-                        displayText: text
-                    });
-
-                    processed.add(elementKey);
-
-                    log.info('Found address mapping:', {
-                        text,
-                        fullAddress,
-                        elementType: element.tagName
-                    });
-                }
-            }
-        }
-
-        return mappings;
-    } catch (error) {
-        log.error('Error finding addresses:', error);
-        return [];
+    error(...args: any[]): void {
+        console.error('%c[BuilderScore]', 'color: #ef4444;', ...args);
     }
 }
 
-function createNameElement(cachedName: CachedName, originalAddress: string): HTMLSpanElement {
-    const container = document.createElement('span');
-    container.className = `fc-name fc-name-${cachedName.type}`;
-    container.dataset.address = originalAddress;
-
-    if (cachedName.type === 'farcaster') {
-        const link = document.createElement('a');
-        link.href = `https://warpcast.com/${cachedName.name}`;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.className = 'fc-name-link';
-
-        const nameSpan = document.createElement('span');
-        nameSpan.textContent = cachedName.name;
-        link.appendChild(nameSpan);
-
-        if (cachedName.isPowerUser) {
-            const powerBadge = document.createElement('span');
-            powerBadge.textContent = '⚡';
-            powerBadge.className = 'fc-power-badge';
-            link.appendChild(powerBadge);
-        }
-
-        container.appendChild(link);
-    } else {
-        container.textContent = cachedName.name;
+// Platform Service
+class PlatformService {
+    getCurrentPlatform(): string {
+        return window.location.hostname.includes('warpcast.com')
+            ? CONFIG.PLATFORMS.WARPCAST
+            : CONFIG.PLATFORMS.TWITTER;
     }
 
-    return container;
-}
+    getUsername(platform: string, isTestMode: boolean): string | null {
+        if (isTestMode) return 'testUser';
 
-async function processAddressMapping(mapping: AddressInfo): Promise<void> {
-    try {
-        if (mapping.element.classList.contains('fc-processed')) return;
-
-        const resolvedName = await resolver.resolveName(mapping.fullAddress);
-        if (!resolvedName) return;
-
-        const nameElement = createNameElement(resolvedName, mapping.fullAddress);
-        mapping.element.classList.add('fc-processed');
-
-        // Handle DOM replacement while preserving structure
-        if (mapping.element.childNodes.length === 1 && mapping.element.firstChild?.nodeType === Node.TEXT_NODE) {
-            mapping.element.replaceWith(nameElement);
+        if (platform === CONFIG.PLATFORMS.WARPCAST) {
+            const usernameElement = document.querySelector(CONFIG.SELECTORS.WARPCAST.USERNAME);
+            return usernameElement?.textContent?.trim() || null;
         } else {
-            mapping.element.childNodes.forEach(node => {
-                if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim() === mapping.displayText) {
-                    node.replaceWith(nameElement);
+            const path = window.location.pathname;
+            if (!path) return null;
+
+            const username = path.split('/')[1];
+            if (!username || ['home', 'explore', 'notifications'].includes(username)) {
+                return null;
+            }
+            return username;
+        }
+    }
+
+    getTargetElement(element: Element, platform: string): Element | null {
+        return platform === CONFIG.PLATFORMS.WARPCAST
+            ? element.querySelector(CONFIG.SELECTORS.WARPCAST.TAGS)
+            : element.querySelector(CONFIG.SELECTORS.TWITTER.DISPLAY_NAME);
+    }
+
+    getSelector(platform: string): string {
+        return platform === CONFIG.PLATFORMS.WARPCAST
+            ? CONFIG.SELECTORS.WARPCAST.TAGS
+            : CONFIG.SELECTORS.TWITTER.PROFILE_NAME;
+    }
+}
+
+// Badge UI Service
+class BadgeUIService {
+    private lastBadgeUpdate: { [key: string]: number } = {};
+    private popupInstance: PopupComponent | null = null;
+
+    createBadge(
+        data: BuilderScoreData,
+        platform: string,
+        username: string,
+        onUpdate: () => Promise<void>
+    ): HTMLElement {
+        const badge = document.createElement('div');
+        badge.className = 'builder-score-badge';
+
+        // Aplicar estilos base
+        this.applyBadgeStyles(badge, platform, data.verified);
+        const scoreContainer = this.createScoreContainer(data.score, data.verified, platform);
+        badge.appendChild(scoreContainer);
+
+        // Definir título
+        badge.title = `Builder Score: ${data.score}\n${data.verified ? 'Verified Account' : 'Not Verified'}`;
+
+        // Adicionar event listener
+        badge.addEventListener('click', async (event) => {
+            event.stopPropagation();
+            const now = Date.now();
+
+            // Esconder popup existente
+            if (this.popupInstance) {
+                this.popupInstance.hide();
+            }
+
+            // Criar e mostrar novo popup
+            this.popupInstance = new PopupComponent(data);
+            this.popupInstance.show(badge);
+
+            // Atualizar score se necessário
+            if (now - (this.lastBadgeUpdate[username] || 0) >= CONFIG.BADGE_UPDATE_COOLDOWN) {
+                this.lastBadgeUpdate[username] = now;
+                badge.style.opacity = '0.8';
+
+                try {
+                    await onUpdate();
+                } catch (error) {
+                    console.error('Error updating score:', error);
+                } finally {
+                    badge.style.opacity = '1';
                 }
+            }
+        });
+
+        return badge;
+    }
+
+    private applyBadgeStyles(badge: HTMLElement, platform: string, verified: boolean): void {
+        const gradientColor = verified
+            ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)'
+            : 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)';
+
+        const commonStyles = {
+            background: gradientColor,
+            color: 'white',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            boxShadow: '0 2px 4px rgba(139, 92, 246, 0.2)'
+        };
+
+        if (platform === 'warpcast') {
+            badge.className += ' flex w-max flex-row items-center space-x-1 rounded-full px-2 py-1 text-sm';
+            Object.assign(badge.style, {
+                ...commonStyles,
+                margin: '0 4px'
+            });
+        } else {
+            Object.assign(badge.style, {
+                ...commonStyles,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                padding: '3px 10px',
+                borderRadius: '12px',
+                fontSize: '13px',
+                fontWeight: '600',
+                marginLeft: '8px',
+                verticalAlign: 'middle',
+                minWidth: '44px',
+                height: '24px'
             });
         }
 
-        log.info('Replaced address with name:', {
-            from: mapping.displayText,
-            to: resolvedName.name
+        // Add hover effect
+        badge.addEventListener('mouseenter', () => {
+            badge.style.transform = 'translateY(-1px)';
+            badge.style.boxShadow = '0 4px 6px rgba(139, 92, 246, 0.3)';
         });
-    } catch (error) {
-        log.error('Error processing address:', error);
-    }
-}
 
-const TRIGGER_PATTERNS: TriggerPattern[] = [
-    {
-        texts: ['Transactions', 'Top Traders', 'Holders', 'Liquidity Providers'],
-        selector: 'span, button, div'
-    },
-    {
-        regex: /Holders\s*\(\d+\)/,
-        selector: 'button'
-    },
-    {
-        regex: /Liquidity Providers\s*\(\d+\)/,
-        selector: 'button'
-    }
-];
-
-function checkForTriggers(): boolean {
-    try {
-        // Check exact text matches
-        for (const pattern of TRIGGER_PATTERNS) {
-            if ('texts' in pattern) {
-                const elements = Array.from(document.querySelectorAll(pattern.selector));
-                const found = elements.some(el => {
-                    const text = el.textContent?.trim() || '';
-                    return pattern.texts.some(triggerText => text.includes(triggerText));
-                });
-
-                if (found) {
-                    log.info('Trigger found with text pattern');
-                    return true;
-                }
-            }
-            // Check regex patterns
-            if ('regex' in pattern) {
-                const elements = Array.from(document.querySelectorAll(pattern.selector));
-                const found = elements.some(el => {
-                    const text = el.textContent?.trim() || '';
-                    return pattern.regex.test(text);
-                });
-
-                if (found) {
-                    log.info('Trigger found with regex pattern');
-                    return true;
-                }
-            }
-        }
-
-        // Check for specific SVGs indicating relevant sections
-        const svgPaths = [
-            'M4.87759 3.00293H19.1319C19.4518',
-            'M562.1 383.9c-21.5-2.4-42.1-10.5'
-        ];
-
-        const svgs = document.querySelectorAll('svg');
-        for (const svg of svgs) {
-            const paths = svg.querySelectorAll('path');
-            for (const path of paths) {
-                const d = path.getAttribute('d');
-                if (d && svgPaths.some(p => d.startsWith(p))) {
-                    log.info('Trigger found through SVG icon');
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    } catch (error) {
-        log.error('Error checking triggers:', error);
-        return false;
-    }
-}
-
-function debounce<T extends (...args: any[]) => any>(
-    fn: T,
-    ms: number
-): (...args: Parameters<T>) => void {
-    let timeoutId: ReturnType<typeof setTimeout>;
-
-    return function (this: any, ...args: Parameters<T>) {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => fn.apply(this, args), ms);
-    };
-}
-
-function initialize() {
-    if (!checkForTriggers()) {
-        log.info('No relevant triggers found, extension not initialized');
-        return;
+        badge.addEventListener('mouseleave', () => {
+            badge.style.transform = 'translateY(0)';
+            badge.style.boxShadow = '0 2px 4px rgba(139, 92, 246, 0.2)';
+        });
     }
 
-    log.info('Triggers found, initializing Farcaster extension');
+    private createScoreContainer(score: number, verified: boolean, platform: string): HTMLElement {
+        const container = document.createElement('div');
+        container.className = platform === 'warpcast'
+            ? 'flex items-center space-x-1'
+            : 'flex items-center gap-1';
 
-    const process = debounce(() => {
-        const mappings = findAddressMappings();
-        mappings.forEach(processAddressMapping);
-    }, 100);
+        const scoreText = document.createElement('span');
+        const displayScore = Math.round(score);
+        scoreText.textContent = platform === 'warpcast'
+            ? `Score: ${displayScore}`
+            : displayScore.toString();
 
-    // Initial processing
-    process();
+        scoreText.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        container.appendChild(scoreText);
 
-    const observer = new MutationObserver((mutations) => {
-        if (checkForTriggers()) {
-            for (const mutation of mutations) {
-                if (mutation.addedNodes.length > 0) {
-                    process();
-                    break;
-                }
-            }
-        }
-    });
-
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-
-    log.info('Extension initialized successfully');
-}
-
-function startWithRetry(maxRetries = 10) {
-    let attempts = 0;
-    const intervals = [100, 200, 300, 500, 1000, 2000];
-
-    const tryInitialize = () => {
-        if (attempts >= maxRetries) {
-            log.error('Failed to initialize after maximum retries');
-            return;
+        if (verified) {
+            container.appendChild(this.createVerifiedIcon(platform));
         }
 
-        if (document.readyState === 'complete') {
-            if (checkForTriggers()) {
-                initialize();
-                log.info('Extension initialized on attempt', attempts + 1);
-            } else {
-                attempts++;
-                const interval = intervals[Math.min(attempts, intervals.length - 1)];
-                log.info(`No triggers found, retrying in ${interval}ms (attempt ${attempts + 1})`);
-                setTimeout(tryInitialize, interval);
-            }
+        return container;
+    }
+
+    private createVerifiedIcon(platform: string): HTMLElement {
+        if (platform === 'warpcast') {
+            const icon = document.createElement('svg');
+            icon.setAttribute('width', '14');
+            icon.setAttribute('height', '14');
+            icon.setAttribute('viewBox', '0 0 14 14');
+            icon.setAttribute('fill', 'currentColor');
+            icon.innerHTML = `
+                <path d="M13.0303 3.96967C13.3232 4.26256 13.3232 4.73744 13.0303 5.03033L6.03033 12.0303C5.73744 12.3232 5.26256 12.3232 4.96967 12.0303L0.96967 8.03033C0.676777 7.73744 0.676777 7.26256 0.96967 6.96967C1.26256 6.67678 1.73744 6.67678 2.03033 6.96967L5.5 10.4393L11.9697 3.96967C12.2626 3.67678 12.7374 3.67678 13.0303 3.96967Z"/>
+            `;
+            return icon;
         } else {
-            window.addEventListener('load', tryInitialize);
+            const icon = document.createElement('span');
+            icon.textContent = '✓';
+            icon.style.fontSize = '12px';
+            return icon;
         }
-    };
+    }
 
-    tryInitialize();
+    private attachClickHandlers(
+        badge: HTMLElement,
+        data: typeof safeData,
+        username: string,
+        onUpdate: () => Promise<void>
+    ): void {
+        badge.onclick = async (event) => {
+            event.stopPropagation();
+            const now = Date.now();
+
+            // Hide existing popup if it exists
+            if (this.popupInstance) {
+                this.popupInstance.hide();
+            }
+
+            // Create and show new popup
+            this.popupInstance = new PopupComponent({
+                score: data.score,
+                verified: data.verified,
+                skills: data.skills,
+                socialProfiles: data.socialProfiles,
+                displayName: data.displayName,
+                imageUrl: data.imageUrl,
+                bio: data.bio
+            });
+
+            this.popupInstance.show(badge);
+
+            // Handle score update
+            if (now - (this.lastBadgeUpdate[username] || 0) < CONFIG.BADGE_UPDATE_COOLDOWN) {
+                return;
+            }
+
+            this.lastBadgeUpdate[username] = now;
+            badge.style.opacity = '0.8';
+
+            try {
+                await onUpdate();
+            } finally {
+                badge.style.opacity = '1';
+            }
+        };
+    }
 }
 
-const styles = `
-.fc-name {
-    font-weight: 500;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+// Main Builder Score Controller
+class BuilderScoreController {
+    private readonly logger: Logger;
+    private readonly platformService: PlatformService;
+    private readonly badgeUIService: BadgeUIService;
+    private readonly processedElements: Set<Element>;
+    private readonly observer: MutationObserver;
+    private mutationTimeout: NodeJS.Timeout | null = null;
+    private isTestMode = false;
+
+    constructor() {
+        this.logger = new Logger(CONFIG.DEBUG);
+        this.platformService = new PlatformService();
+        this.badgeUIService = new BadgeUIService();
+        this.processedElements = new Set();
+        this.observer = new MutationObserver(this.handleMutations.bind(this));
+
+        this.logger.log('BuilderScore initialized');
+    }
+
+    private async requestPassportData(username: string): Promise<BuilderScoreResponse> {
+        if (this.isTestMode) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            return {
+                success: true,
+                data: {
+                    score: Math.floor(Math.random() * 100),
+                    verified: Math.random() > 0.5,
+                    displayName: username,
+                    bio: '',
+                    imageUrl: '',
+                    socialProfiles: {},
+                    skills: {
+                        activity: Math.floor(Math.random() * 100),
+                        identity: Math.floor(Math.random() * 100),
+                        skills: Math.floor(Math.random() * 100)
+                    },
+                    lastUpdated: new Date().toISOString()
+                }
+            };
+        }
+
+        return new Promise((resolve) => {
+            chrome.runtime.sendMessage(
+                { type: 'GET_PASSPORT_DATA', username },
+                (response: BuilderScoreResponse) => {
+                    if (!response) {
+                        resolve({
+                            success: false,
+                            error: 'No response from background service'
+                        });
+                        return;
+                    }
+                    resolve(response);
+                }
+            );
+        });
+    }
+
+    private async injectBadge(element: Element): Promise<void> {
+        if (this.processedElements.has(element)) return;
+
+        const platform = this.platformService.getCurrentPlatform();
+        const username = this.platformService.getUsername(platform, this.isTestMode);
+        if (!username) return;
+
+        const targetElement = this.platformService.getTargetElement(element, platform);
+        if (!targetElement) return;
+
+        try {
+            const response = await this.requestPassportData(username);
+            if (response.success && response.data) {
+                const badge = this.badgeUIService.createBadge(
+                    response.data,
+                    platform,
+                    username,
+                    async () => {
+                        try {
+                            const newResponse = await this.requestPassportData(username);
+                            if (newResponse.success && newResponse.data) {
+                                const newBadge = this.badgeUIService.createBadge(
+                                    newResponse.data,
+                                    platform,
+                                    username,
+                                    async () => {
+                                        // Update handler
+                                        await this.updateBadge(username, badge);
+                                    }
+                                );
+                                if (badge.parentNode) {
+                                    badge.parentNode.replaceChild(newBadge, badge);
+                                }
+                            }
+                        } catch (error) {
+                            this.logger.error('Error updating badge:', error);
+                        }
+                    }
+                );
+
+                // Remove existing badge if present
+                const existingBadge = targetElement.querySelector('.builder-score-badge');
+                if (existingBadge) {
+                    existingBadge.remove();
+                }
+
+                targetElement.appendChild(badge);
+                this.processedElements.add(element);
+            }
+        } catch (error) {
+            this.logger.error('Error in injectBadge:', error);
+        }
+    }
+
+
+    private async updateBadge(username: string, badge: HTMLElement): Promise<void> {
+        try {
+            const response = await this.requestPassportData(username);
+            if (response.success && response.data && badge.parentNode) {
+                const newBadge = this.badgeUIService.createBadge(
+                    response.data,
+                    this.platformService.getCurrentPlatform(),
+                    username,
+                    () => this.updateBadge(username, badge)
+                );
+                badge.parentNode.replaceChild(newBadge, badge);
+            }
+        } catch (error) {
+            this.logger.error('Error in updateBadge:', error);
+        }
+    }
+
+    private handleMutations(mutations: MutationRecord[]): void {
+        if (this.mutationTimeout) {
+            clearTimeout(this.mutationTimeout);
+        }
+
+        this.mutationTimeout = setTimeout(() => {
+            const platform = this.platformService.getCurrentPlatform();
+            const selector = this.platformService.getSelector(platform);
+
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(element => {
+                if (!this.processedElements.has(element)) {
+                    this.injectBadge(element);
+                }
+            });
+
+            this.mutationTimeout = null;
+        }, CONFIG.MUTATION_DEBOUNCE);
+    }
+
+    public init(): void {
+        const platform = this.platformService.getCurrentPlatform();
+        const selector = this.platformService.getSelector(platform);
+
+        const elements = document.querySelectorAll(selector);
+        elements.forEach(element => this.injectBadge(element));
+
+        this.observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    }
+
+    public destroy(): void {
+        if (this.mutationTimeout) {
+            clearTimeout(this.mutationTimeout);
+        }
+        this.observer.disconnect();
+        document.querySelectorAll('.builder-score-badge').forEach(badge => badge.remove());
+    }
 }
 
-.fc-name-farcaster {
-    color: #855DCD;
+// Initialize content script
+const builderScore = new BuilderScoreController();
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => builderScore.init());
+} else {
+    builderScore.init();
 }
 
-.fc-power-badge {
-    color: #855DCD;
-    font-size: 0.9em;
-}
-
-.fc-name-link {
-    color: inherit;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-}
-
-.fc-name-link:hover {
-    text-decoration: underline;
-}
-`;
-
-const styleSheet = document.createElement('style');
-styleSheet.textContent = styles;
-document.head.appendChild(styleSheet);
-
-
-startWithRetry();
+// Cleanup
+window.addEventListener('unload', () => builderScore.destroy());

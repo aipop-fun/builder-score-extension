@@ -1,97 +1,118 @@
-# PurpleHawk
+# Builder Score Extension
 
-![PurpleHawk](img/PurpleHawk.jpg)
-
-A Chrome extension that enhances DexScreener by replacing Ethereum addresses with corresponding Farcaster usernames. PurpleHawk seamlessly integrates Farcaster's social layer into your DeFi experience.
+A powerful Chrome extension that seamlessly integrates Builder Score metrics into social media platforms, providing real-time insights about Web3 builders and their contributions.
 
 ## Features
 
-- 🔄 Real-time address resolution to Farcaster usernames
-- 🎯 Smart detection of wallet addresses in various formats
-- ⚡ Efficient caching system for rapid lookups
-- 🔗 Direct links to Warpcast profiles
-- 💜 Distinctive purple styling for Farcaster names
+- **Real-time Score Display**: Automatically displays Builder Scores on Twitter and Warpcast profiles
+- **Interactive Badges**: Clickable badges showing detailed builder metrics
+- **Score Verification**: Visual indication of verified builder accounts
+- **Profile Analytics**: Comprehensive view of builder activity, identity, and skills scores
+- **Social Integration**: Support for multiple platforms (Twitter, Warpcast) with platform-specific UI adaptations
+- **Caching System**: Efficient data management with 24-hour cache duration
+- **Rate Limiting**: Smart request handling with automatic retries and rate limit management
 
 ## Installation
 
-1. Clone this repository
+1. Clone the repository:
 ```bash
-git clone https://github.com/developerfred/purplehawk.git
-cd purplehawk
+git clone https://github.com/aipopfun/builder-score-extension.git
+cd builder-score-extension
 ```
 
-2. Install dependencies
+2. Install dependencies:
 ```bash
 npm install
 ```
 
-3. Create a `.env` file in the root directory with the following variables:
-```
-CACHE_DURATION=3600000
-NEYNAR_API_KEY=your_api_key_here
-NEYNAR_API_URL=https://api.neynar.com
-```
-
-4. Build the extension
+3. Build the extension:
 ```bash
 npm run build
 ```
 
-5. Load the extension in Chrome:
+4. Load the extension in Chrome:
    - Open Chrome and navigate to `chrome://extensions/`
    - Enable "Developer mode"
    - Click "Load unpacked"
-   - Select the `dist` directory from the project
+   - Select the `dist` directory from your project
 
 ## Development
 
-Run the development build with:
+Run the development build with hot reload:
 ```bash
 npm run dev
 ```
 
-This will watch for file changes and rebuild automatically.
+### Technical Stack
 
-## How it works
-
-PurpleHawk works by:
-1. Monitoring DexScreener pages for wallet addresses
-2. Batch-fetching Farcaster usernames using the Neynar API
-3. Caching resolved names for better performance
-4. Replacing addresses with clickable Farcaster usernames
-
-## Technical Details
-
-- Built with TypeScript for type safety
-- Uses Webpack for bundling
-- Implements efficient caching to minimize API calls
-- Batch processes address resolution for better performance
-- Uses MutationObserver for dynamic content updates
+- **TypeScript**: Type-safe development
+- **React**: Component-based UI development
+- **Tailwind CSS**: Utility-first styling
+- **Webpack**: Module bundling
+- **Chrome Extension API**: Browser integration
+- **Zustand**: State management
+- **Framer Motion**: Animations
 
 ## Configuration
 
-The extension can be configured via environment variables:
+The extension uses several configuration objects that can be modified in the source code:
 
-- `CACHE_DURATION`: Duration to cache resolved names (in milliseconds)
-- `NEYNAR_API_KEY`: Your Neynar API key
-- `NEYNAR_API_URL`: Neynar API endpoint
+```typescript
+const CONFIG = {
+  DEBUG: true,
+  MUTATION_DEBOUNCE: 500,
+  BADGE_UPDATE_COOLDOWN: 2000,
+  // ... other configurations
+}
+
+const API_CONFIG = {
+  BASE_URL: 'http://localhost:3000/api/passport',
+  CACHE_DURATION: 24 * 60 * 60 * 1000,
+  // ... other API configurations
+}
+```
+
+## Features in Detail
+
+### Badge System
+- Dynamic score display
+- Visual verification indicators
+- Interactive click handlers
+- Smooth hover effects
+- Platform-specific styling
+
+### Data Management
+- Efficient caching system
+- Rate limit handling
+- Retry mechanism
+- Error handling
+- Request queuing
+
+### UI Components
+- Score badges
+- Detailed popup views
+- Platform-specific adaptations
+- Responsive design
 
 ## Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some purple feature'`)
-4. Push to the branch (`git push origin feature/purple-feature`)
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Credits
-- [Codinsh](https://warpcast.com/codingsh)
+## Author
 
-Built with ❤️ using:
-- [Neynar API](https://neynar.com/) for Farcaster integration
-- [TypeScript](https://www.typescriptlang.org/)
-- [Webpack](https://webpack.js.org/)
+- [codingsh](https://twitter.com/codingsh)
+
+## Acknowledgments
+
+- Built with React and TypeScript
+- Styled with Tailwind CSS
+- Powered by Chrome Extension APIs
+- Special thanks to all contributors

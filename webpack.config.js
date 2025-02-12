@@ -6,9 +6,11 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = {
     mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
+    devtool: 'source-map',
     entry: {
         popup: './src/popup/index.tsx',
-        content: './src/content/content.ts'
+        content: './src/content/content.ts',
+        background: './src/background.ts'
     },
     output: {
         path: path.resolve(__dirname, 'dist'),
@@ -21,31 +23,31 @@ module.exports = {
                 test: /\.(ts|tsx)$/,
                 use: [{
                     loader: 'ts-loader',
-                    options: { transpileOnly: true }
+                    options: {
+                        transpileOnly: true,
+                        compilerOptions: {
+                            noEmit: true
+                        }
+                    }
                 }],
                 exclude: /node_modules/
             },
             {
                 test: /\.css$/,
-                use: [
-                    'style-loader',
-                    'css-loader',
-                    {
-                        loader: 'postcss-loader',
-                        options: {
-                            postcssOptions: {
-                                plugins: [
-                                    require('tailwindcss'),
-                                    require('autoprefixer'),
-                                ],
-                            },
+                use: ['style-loader', 'css-loader', {
+                    loader: 'postcss-loader',
+                    options: {
+                        postcssOptions: {
+                            plugins: [
+                                require('tailwindcss'),
+                                require('autoprefixer'),
+                            ],
                         },
                     },
-                ],
+                }],
             },
         ]
     },
-
     resolve: {
         extensions: ['.tsx', '.ts', '.js'],
         alias: {
@@ -57,11 +59,12 @@ module.exports = {
         }
     },
     plugins: [
-        new Dotenv({ systemvars: true }),
+        new Dotenv({ systemvars: true, safe: true }),
         new HtmlWebpackPlugin({
             template: './src/popup/popup.html',
             filename: 'popup.html',
-            chunks: ['popup']
+            chunks: ['popup'],
+            inject: 'body'
         }),
         new CopyPlugin({
             patterns: [
@@ -69,14 +72,19 @@ module.exports = {
                 { from: 'src/style/global.css' },
                 { from: 'src/style/styles.css' },
                 { from: 'src/popup/popup.css' },
-                { from: 'public/icons', to: 'icons' }
+                { from: 'public/icons', to: 'icons' },
+                { from: 'img/', to: 'img' }
             ]
         })
     ],
     optimization: {
+        minimize: true,
         minimizer: [
             new TerserPlugin({
                 terserOptions: {
+                    compress: {
+                        drop_console: false,
+                    },
                     format: {
                         comments: false,
                     },
@@ -85,4 +93,4 @@ module.exports = {
             }),
         ],
     },
-};
+}
