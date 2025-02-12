@@ -95,7 +95,7 @@ interface CacheEntry {
 
 // Configuration
 const API_CONFIG = {
-  BASE_URL: 'http://localhost:3000/api/passport',
+  BASE_URL: 'http://talent.aipop.fun/api/passport',
   CACHE_DURATION: 24 * 60 * 60 * 1000, // 24 hours
   RATE_LIMIT: {
     DELAY: 5000, // 5 seconds between requests

@@ -39,7 +39,7 @@
   "*://*.twitter.com/*",
   "*://*.github.com/*",
   "*://*.warpcast.com/*",
-  "http://localhost:3000/*"
+  "http://talent.aipop.fun/*"
   ],
   "content_scripts": [
     {
