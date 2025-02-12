@@ -1,27 +1,30 @@
 {
-  "name": "purple-hawk",
-  "version": "1.0.4",
+  "name": "builder-score-extension",
+  "version": "1.0.0",
   "author": "codingsh",
   "description": "Chrome extension to replace addresses with Farcaster names on DexScreener",
   "scripts": {
-    "build": "webpack --mode production",
-    "dev": "webpack --mode development --watch"
+    "build": "webpack --config webpack.config.js",
+    "dev": "webpack --config webpack.config.js --watch"
   },
   "dependencies": {
     "@radix-ui/react-switch": "^1.1.1",
+    "@supabase/supabase-js": "^2.48.1",
     "autoprefix": "^1.0.1",
     "class-variance-authority": "^0.7.1",
     "dotenv": "^16.0.3",
+    "framer-motion": "^12.4.2",
     "html-webpack-plugin": "^5.6.3",
-    "lucide-react": "^0.468.0",
+    "lucide-react": "^0.475.0",
     "react": "^19.0.0",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
-    "terser-webpack-plugin": "^5.3.10"
+    "terser-webpack-plugin": "^5.3.10",
+    "zustand": "^5.0.3"
   },
   "devDependencies": {
-    "@types/chrome": "^0.0.254",
-    "@types/node": "^20.11.0",
+    "@types/chrome": "^0.0.304",
+    "@types/node": "^20.17.17",
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.1",
     "autoprefixer": "^10.4.20",
@@ -33,7 +36,7 @@
     "style-loader": "^3.3.4",
     "tailwindcss": "^3.4.16",
     "ts-loader": "^9.5.1",
-    "typescript": "^5.3.3",
+    "typescript": "^5.7.3",
     "webpack": "^5.89.0",
     "webpack-cli": "^5.1.4"
   }

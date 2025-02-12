@@ -1,18 +1,178 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PurpleHawk</title>
-    <link href="src/style.css" rel="stylesheet">
-    <link href="src/global.css" rel="stylesheet">
-    <link href="popup.css" rel="stylesheet">
-    
+    <title>Builder Score - Talent Protocol</title>
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --secondary-color: #4f46e5;
+            --background: #ffffff;
+            --text-color: #1f2937;
+            --border-radius: 12px;
+            --spacing-unit: 8px;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --background: #0f172a;
+                --text-color: #f8fafc;
+            }
+        }
+
+        body {
+            width: 320px;
+            min-height: 200px;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: var(--background);
+            color: var(--text-color);
+        }
+
+        .container {
+            padding: calc(var(--spacing-unit) * 3);
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-unit);
+            margin-bottom: calc(var(--spacing-unit) * 3);
+        }
+
+        .logo {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+        }
+
+        .title {
+            font-size: 18px;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .score-card {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: calc(var(--spacing-unit) * 3);
+            border-radius: var(--border-radius);
+            margin-bottom: calc(var(--spacing-unit) * 2);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .score-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: calc(var(--spacing-unit) * 2);
+        }
+
+        .username {
+            font-weight: 500;
+            opacity: 0.9;
+        }
+
+        .main-score {
+            font-size: 28px;
+            font-weight: 800;
+        }
+
+        .score-breakdown {
+            background: rgba(255, 255, 255, 0.1);
+            padding: var(--spacing-unit);
+            border-radius: calc(var(--border-radius) - 4px);
+        }
+
+        .score-row {
+            display: flex;
+            justify-content: space-between;
+            padding: calc(var(--spacing-unit) * 1.5) 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .score-row:last-child {
+            border-bottom: none;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: calc(var(--spacing-unit) * 3);
+            padding-top: calc(var(--spacing-unit) * 2);
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .view-button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background: var(--primary-color);
+            color: white;
+            text-decoration: none;
+            border-radius: var(--border-radius);
+            transition: transform 0.1s ease, opacity 0.1s ease;
+        }
+
+        .view-button:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            gap: var(--spacing-unit);
+        }
+
+        .spinner {
+            animation: spin 1s linear infinite;
+            width: 24px;
+            height: 24px;
+        }
+
+        @keyframes spin {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .error {
+            color: #ef4444;
+            padding: calc(var(--spacing-unit) * 2);
+            background: #fee2e2;
+            border-radius: var(--border-radius);
+            text-align: center;
+        }
+    </style>
 </head>
 
 <body>
-    <div id="root"></div>
+    <div class="container">
+        <header class="header">
+            <!-- Adicione um caminho para seu logo -->
+            <img src="img/logo.png" alt="Logo" class="logo">
+            <h1 class="title">Builder Score</h1>
+        </header>
+
+        <main id="content">
+            <div class="loading">
+                <svg class="spinner" viewBox="0 0 50 50">
+                    <circle cx="25" cy="25" r="20" fill="none" stroke-width="4" stroke="currentColor"
+                        stroke-linecap="round" opacity="0.5" />
+                </svg>
+                Loading...
+            </div>
+        </main>
+
+        <footer class="footer">
+            <small>Powered by Talent Protocol</small>
+        </footer>
+    </div>
     <script src="popup.js"></script>
 </body>
 

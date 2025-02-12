@@ -1,228 +1,193 @@
 import React, { useEffect, useState } from 'react';
-import { RotateCw, Joystick, Coffee, Heart, Settings } from 'lucide-react';
+import { useStore } from './store/useStore';
+import { PassportData } from '../types';
+import Leaderboard from '../components/Leaderboard'
+
+const API_KEY = process.env.TALENT_PROTOCOL_API_KEY!;
+
+// Constantes reutilizáveis
+const ERROR_MESSAGES = {
+    NO_API_KEY: 'API key não configurada',
+    NO_TAB_URL: 'Nenhuma URL de aba ativa encontrada',
+    NO_USERNAME: 'Nenhum nome de usuário do Twitter encontrado na URL',
+    API_FAILURE: 'Falha na requisição da API:',
+    FETCH_ERROR: 'Erro ao buscar dados do passaporte:'
+};
+
+const URL_PATTERNS = {
+    TWITTER_USERNAME: /(twitter\.com|x\.com)\/([^/]+)/,
+    TALENT_PROFILE: (id: string) => `https://app.talentprotocol.com/profile/${id}`
+};
 
 
-interface SwitchProps {
-    checked: boolean;
-    onCheckedChange: (checked: boolean) => void;
-}
-
-interface CardProps {
-    children: React.ReactNode;
-}
-
-interface CardHeaderProps {
-    children: React.ReactNode;
-    className?: string;
-}
-
-interface CardTitleProps {
-    children: React.ReactNode;
-    className?: string;
-}
-
-interface CardContentProps {
-    children: React.ReactNode;
-}
-
-declare global {
-    namespace JSX {
-        interface IntrinsicElements {
-            [elemName: string]: any;
-        }
-    }
-}
-
-interface ExtensionStats {
-    cacheSize: number;
-    lastUpdate: string;
-    isEnabled: boolean;
-}
+const ScoreRow: React.FC<{ label: string; value: number }> = ({ label, value }) => (
+    <div className="flex justify-between">
+        <span>{label}</span>
+        <span>{value}</span>
+    </div>
+);
 
 
-const Switch: React.FC<SwitchProps> = ({ checked, onCheckedChange }) => (
-    <button
-        onClick={() => onCheckedChange(!checked)}
-        className={`w-11 h-6 rounded-full transition-colors ${checked ? 'bg-purple-600' : 'bg-gray-200'}`}
+const PopupHeader: React.FC = () => (
+    <div className="text-xl font-bold mb-4">Builder Score</div>
+);
+
+
+const ProfileLink: React.FC<{ passportId: string }> = ({ passportId }) => (
+    <a
+        href={URL_PATTERNS.TALENT_PROFILE(passportId)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block w-full text-center bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700"
     >
-        <div className={`w-5 h-5 rounded-full bg-white transform transition-transform ${checked ? 'translate-x-5' : 'translate-x-1'}`} />
-    </button>
-);
-
-const Card: React.FC<CardProps> = ({ children }) => (
-    <div className="bg-white rounded-lg border shadow-sm">{children}</div>
-);
-
-const CardHeader: React.FC<CardHeaderProps> = ({ children, className = '' }) => (
-    <div className={`p-4 ${className}`}>{children}</div>
-);
-
-const CardTitle: React.FC<CardTitleProps> = ({ children, className = '' }) => (
-    <h3 className={`font-semibold ${className}`}>{children}</h3>
-);
-
-const CardContent: React.FC<CardContentProps> = ({ children }) => (
-    <div className="p-4 pt-0">{children}</div>
+        View on Talent Protocol
+    </a>
 );
 
 
-interface ExtensionStats {
-    cacheSize: number;
-    lastUpdate: string;
-    isEnabled: boolean;
-}
-
-interface StorageChanges {
-    [key: string]: chrome.storage.StorageChange;
-}
-
-const Popup: React.FC = () => {
-    const [stats, setStats] = useState<ExtensionStats>({
-        cacheSize: 0,
-        lastUpdate: '',
-        isEnabled: true
+const usePassportData = () => {
+    const { getPassportData, setPassportData } = useStore();
+    const [state, setState] = useState<{
+        loading: boolean;
+        error: string | null;
+        username: string | null;
+        passport: PassportData | null;
+    }>({
+        loading: true,
+        error: null,
+        username: null,
+        passport: null
     });
-    const [activeTab, setActiveTab] = useState<'main' | 'about'>('main');
+
+    const fetchData = async () => {
+        try {
+            console.log('[Popup] Iniciando busca de dados...');
+
+            if (!API_KEY) {
+                console.error('[Popup] Erro: API key não configurada');
+                setState(prev => ({ ...prev, error: ERROR_MESSAGES.NO_API_KEY, loading: false }));
+                return;
+            }
+
+            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+            console.log('[Popup] Abas encontradas:', tabs);
+
+            const url = tabs[0]?.url;
+            if (!url) {
+                console.warn('[Popup] Nenhuma URL encontrada na aba ativa');
+                setState(prev => ({ ...prev, error: ERROR_MESSAGES.NO_TAB_URL, loading: false }));
+                return;
+            }
+
+            const match = url.match(URL_PATTERNS.TWITTER_USERNAME);
+            const username = match?.[1];
+            console.log('[Popup] Username extraído:', username);
+
+            if (!username) {
+                console.warn('[Popup] Nenhum username encontrado na URL');
+                setState(prev => ({ ...prev, error: ERROR_MESSAGES.NO_USERNAME, loading: false }));
+                return;
+            }
+
+            setState(prev => ({ ...prev, username }));
+
+            const cachedData = getPassportData(username);
+            if (cachedData) {
+                console.log('[Popup] Usando dados em cache para:', username);
+                setState(prev => ({
+                    ...prev,
+                    loading: false,
+                    passport: cachedData.passport
+                }));
+                return;
+            }
+
+            console.log('[Popup] Buscando dados da API para:', username);
+            const response = await fetch(
+                `https://api.talentprotocol.com/api/v2/passports?filter[twitter]=${username}`,
+                {
+                    headers: {
+                        'X-API-KEY': API_KEY,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            console.log('[Popup] Resposta da API:', response.status);
+            if (!response.ok) {
+                throw new Error(`${ERROR_MESSAGES.API_FAILURE} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            console.log('[Popup] Dados recebidos:', data);
+            const passportData = data.passports[0];
+
+            if (passportData) {
+                console.log('[Popup] Salvando dados no cache:', username);
+                setPassportData(username, { passport: passportData });
+                setState(prev => ({
+                    ...prev,
+                    loading: false,
+                    passport: passportData
+                }));
+            } else {
+                console.warn('[Popup] Nenhum dado de passaporte encontrado');
+                setState(prev => ({ ...prev, loading: false }));
+            }
+        } catch (err) {
+            console.error('[Popup] Erro durante o fetch:', err);
+            setState(prev => ({
+                ...prev,
+                error: err instanceof Error ? err.message : ERROR_MESSAGES.FETCH_ERROR,
+                loading: false
+            }));
+        }
+    };
+
+    return { ...state, fetchData };
+};
+
+export const Popup: React.FC = () => {
+    const { loading, error, username, passport, fetchData } = usePassportData();
 
     useEffect(() => {
-        void chrome.storage.local.get(['cacheSize', 'lastUpdate', 'isEnabled'], (result) => {
-            setStats({
-                cacheSize: result.cacheSize || 0,
-                lastUpdate: result.lastUpdate || 'Never',
-                isEnabled: result.isEnabled !== false
-            });
-        });
-
-        const handleStorageChange = (changes: Record<string, chrome.storage.StorageChange>) => {
-            setStats(prev => ({
-                ...prev,
-                cacheSize: changes.cacheSize?.newValue ?? prev.cacheSize,
-                lastUpdate: changes.lastUpdate?.newValue ?? prev.lastUpdate,
-                isEnabled: changes.isEnabled?.newValue ?? prev.isEnabled
-            }));
-        };
-
-        chrome.storage.onChanged.addListener(handleStorageChange);
-        return () => chrome.storage.onChanged.removeListener(handleStorageChange);
+        fetchData();
     }, []);
 
-    const toggleExtension = () => {
-        const newState = !stats.isEnabled;
-        void chrome.storage.local.set({ isEnabled: newState });
-        void chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            const tabId = tabs[0]?.id;
-            if (tabId) {
-                void chrome.tabs.sendMessage(tabId, { type: 'TOGGLE_EXTENSION', enabled: newState });
-            }
-        });
-    };
+    if (loading) {
+        return <div className="p-4">Carregando dados do passaporte...</div>;
+    }
 
-    const clearCache = () => {
-        void chrome.storage.local.set({ cacheSize: 0, lastUpdate: 'Never' });
-        void chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            const tabId = tabs[0]?.id;
-            if (tabId) {
-                void chrome.tabs.sendMessage(tabId, { type: 'CLEAR_CACHE' });
-            }
-        });
-    };
+    if (error) {
+        return <div className="p-4 text-red-600">Erro: {error}</div>;
+    }
 
+    if (!username) {
+        return <div className="p-4">Perfil do Twitter não detectado</div>;
+    }
+
+    if (!passport) {
+        return <div className="p-4">Nenhum dado de passaporte encontrado para @{username}</div>;
+    }
 
     return (
-
-        <div className="w-72 p-4 space-y-4" >
-            <header className="flex items-center justify-between" >
-                <div className="flex items-center space-x-2" onClick={() => setActiveTab('main')}>
-                    <img src="../icons/icon-32.png" alt="PurpleHawk" className="w-8 h-8" />
-                    <h1 className="text-xl font-bold text-purple-600" > PurpleHawk </h1>
+        <div className="p-4 w-80">
+            <PopupHeader />
+            <div className="space-y-4">
+                <Leaderboard />
+                <div className="flex items-center justify-between bg-purple-100 p-3 rounded-lg">
+                    <span>@{username}</span>
+                    <span className="font-bold text-lg">{passport.score}</span>
                 </div>
-                < Switch checked={stats.isEnabled} onCheckedChange={toggleExtension} />
-            </header>
 
-            {
-                activeTab === 'main' ? (
-                    <>
-                        <Card>
-                            <CardHeader className="pb-2" >
-                                <CardTitle className="text-sm" > Cache Status </CardTitle>
-                            </CardHeader>
-                            < CardContent >
-                                <div className="flex justify-between items-center" >
-                                    <div className="text-sm" >
-                                        <p>Cached Names: {stats.cacheSize} </p>
-                                        <p> Last Update: {stats.lastUpdate} </p>
-                                    </div>
-                                    < button
-                                        onClick={clearCache}
-                                        className="p-2 hover:bg-gray-100 rounded-full"
-                                    >
-                                        <RotateCw className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </CardContent>
-                        </Card>
+                <div className="space-y-2">
+                    <ScoreRow label="Activity Score" value={passport.activity_score} />
+                    <ScoreRow label="Identity Score" value={passport.identity_score} />
+                    <ScoreRow label="Skills Score" value={passport.skills_score} />
+                </div>
 
-                        < div className="space-y-2" >
-                            <button
-                                onClick={() => setActiveTab('about')}
-                                className="w-full flex items-center justify-between p-2 hover:bg-gray-100 rounded"
-                            >
-                                <div className="flex items-center space-x-2" >
-                                    <Settings className="w-4 h-4" />
-                                    <span>About </span>
-                                </div>
-                            </button>
-                        </div>
-                    </>
-                ) : (
-                    <div className="space-y-4" >
-                        <div className="text-center space-y-2" >
-                            <h2 className="font-bold" > Created by </h2>
-                            < a
-                                href="https://warpcast.com/codingsh"
-                                target="_blank"
-                                className="text-purple-600 hover:underline flex items-center justify-center gap-2"
-                            >
-                                <img
-                                        src="https://wrpcd.net/cdn-cgi/image/anim=false,fit=contain,f=auto,w=336/https%3A%2F%2Fi.imgur.com%2F5HxmC1P.jpg"
-                                    alt="developerfred"
-                                    className="w-6 h-6 rounded-full"
-                                />
-                                @developerfred
-                            </a>
-                        </div>
-
-                        < div className="space-y-2" >
-                            <a
-                                href="https://Github.com/developerfred/purplehawk"
-                                target="_blank"
-                                className="w-full flex items-center justify-center gap-2 p-2 bg-gray-100 hover:bg-gray-200 rounded"
-                            >
-                                <Joystick className="w-4 h-4" />
-                                Contribute on Github
-                            </a>
-
-                            < a
-                                    href="https://etherscan.io/address/0xd1a8Dd23e356B9fAE27dF5DeF9ea025A602EC81e"
-                                target="_blank"
-                                className="w-full flex items-center justify-center gap-2 p-2 bg-purple-100 hover:bg-purple-200 rounded text-purple-700"
-                            >
-                                <Coffee className="w-4 h-4" />
-                                Buy me a coffee
-                            </a>
-                        </div>
-
-                        < div className="text-xs text-center text-gray-500" >
-                            Made with <Heart className="w-3 h-3 inline text-red-500" /> for the Farcaster community
-                        </div>
-                    </div>
-                )}
-
-            <footer className="text-xs text-gray-500 text-center" >
-                Version 1.0.4
-            </footer>
+                <ProfileLink passportId={passport.passport_id} />
+            </div>
         </div>
     );
 };
-
-export default Popup;
