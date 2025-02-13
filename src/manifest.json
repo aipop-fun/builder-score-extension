@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BuilderScore",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Display Builder Scores from Talent Protocol on X profiles",
   "icons": {
     "16": "icons/icon-16.png",
@@ -38,7 +38,8 @@
   "*://*.x.com/*",
   "*://*.twitter.com/*",
   "*://*.github.com/*",
-  "*://*.warpcast.com/*",
+  "https://*.warpcast.com/*",
+  "https://warpcast.com/*",
   "*://*.talent.aipop.fun/*"
   ],
   "content_scripts": [
@@ -47,7 +48,9 @@
         "*://*.x.com/*",
         "*://*.twitter.com/*",
         "*://*.github.com/*",
-        "*://*.warpcast.com/*"
+        "*://*.warpcast.com/*",
+        "https://*.warpcast.com/*",
+        "https://warpcast.com/*"
 
       ],
       "js": ["content.js"],
@@ -56,7 +59,7 @@
         "styles.css"
       ],
       "run_at": "document_idle",
-"all_frames": false
+      "all_frames": false
     }
   ],
   "web_accessible_resources": [
@@ -69,6 +72,8 @@
       "matches": [
         "*://*.x.com/*",
         "*://*.twitter.com/*",
+        "https://*.warpcast.com/*",
+        "https://warpcast.com/*",
         "*://*.warpcast.com/*"
       ]
     }

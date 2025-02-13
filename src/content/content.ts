@@ -1,6 +1,20 @@
 import PopupComponent from "@/components/PopupComponent";
 
 // Types and Interfaces
+
+enum PlatformType {
+    TWITTER = 'twitter',
+    GITHUB = 'github',
+    FARCASTER = 'farcaster',
+    ENS = 'ens',
+    LENS = 'lens'
+}
+
+interface IdentityQuery {
+    provider: string;
+    username: string;
+}
+
 interface PassportData {
     passport_id: string;
     activity_score: number;
@@ -56,9 +70,12 @@ const CONFIG = {
             PROFILE_NAME: 'div[data-testid="UserName"], h2[role="heading"], div[data-testid="UserCell"]',
             DISPLAY_NAME: 'div[dir="ltr"]'
         },
-        WARPCAST: {
-            TAGS: 'div.flex.flex-row.items-center.space-x-2',
-            USERNAME: 'div.text-muted'
+        WARPCAST: {            
+            PROFILE_CONTAINER: '.min-w-0.flex-auto.space-y-3',            
+            USERNAME_CONTAINER: '.flex.flex-row.items-center.justify-between',            
+            USERNAME: '.text-base.text-faint',            
+            BADGE_CONTAINER: '.flex.flex-row.items-center.space-x-2',            
+            STATS_CONTAINER: '.flex.w-full.flex-row.flex-wrap.gap-2'
         }
     },
     PLATFORMS: {
@@ -87,7 +104,7 @@ class Logger {
 }
 
 // Platform Service
-class PlatformService {
+export class PlatformService {
     getCurrentPlatform(): string {
         return window.location.hostname.includes('warpcast.com')
             ? CONFIG.PLATFORMS.WARPCAST
@@ -97,10 +114,22 @@ class PlatformService {
     getUsername(platform: string, isTestMode: boolean): string | null {
         if (isTestMode) return 'testUser';
 
-        if (platform === CONFIG.PLATFORMS.WARPCAST) {
+        if (platform === CONFIG.PLATFORMS.WARPCAST) {            
+            const path = window.location.pathname;
+            const urlUsername = path.split('/').filter(p => p)[0]; 
+            if (urlUsername && !['home', 'explore', 'notifications', 'user'].includes(urlUsername)) {
+                return urlUsername;
+            }
+
+            
             const usernameElement = document.querySelector(CONFIG.SELECTORS.WARPCAST.USERNAME);
-            return usernameElement?.textContent?.trim() || null;
+            if (usernameElement) {
+                const username = usernameElement.textContent?.trim();
+                return username?.startsWith('@') ? username.substring(1) : username;
+            }
+            return null;
         } else {
+            
             const path = window.location.pathname;
             if (!path) return null;
 
@@ -113,14 +142,27 @@ class PlatformService {
     }
 
     getTargetElement(element: Element, platform: string): Element | null {
-        return platform === CONFIG.PLATFORMS.WARPCAST
-            ? element.querySelector(CONFIG.SELECTORS.WARPCAST.TAGS)
-            : element.querySelector(CONFIG.SELECTORS.TWITTER.DISPLAY_NAME);
+        if (platform === CONFIG.PLATFORMS.WARPCAST) {            
+            const badgeContainer = element.querySelector(CONFIG.SELECTORS.WARPCAST.BADGE_CONTAINER);
+            if (badgeContainer) {
+                return badgeContainer;
+            }
+
+            
+            const statsContainer = element.querySelector(CONFIG.SELECTORS.WARPCAST.STATS_CONTAINER);
+            if (statsContainer) {
+                return statsContainer;
+            }
+
+            return null;
+        } else {
+            return element.querySelector(CONFIG.SELECTORS.TWITTER.DISPLAY_NAME);
+        }
     }
 
     getSelector(platform: string): string {
         return platform === CONFIG.PLATFORMS.WARPCAST
-            ? CONFIG.SELECTORS.WARPCAST.TAGS
+            ? CONFIG.SELECTORS.WARPCAST.PROFILE_CONTAINER
             : CONFIG.SELECTORS.TWITTER.PROFILE_NAME;
     }
 }
@@ -358,7 +400,7 @@ class BuilderScoreController {
 
         return new Promise((resolve) => {
             chrome.runtime.sendMessage(
-                { type: 'GET_PASSPORT_DATA', username },
+                { type: 'GET_PASSPORT_DATA', username, platform: this.platformService.getCurrentPlatform() },
                 (response: BuilderScoreResponse) => {
                     if (!response) {
                         resolve({

@@ -1,4 +1,18 @@
 // Types
+
+enum PlatformType {
+  TWITTER = 'twitter',
+  GITHUB = 'github',
+  FARCASTER = 'farcaster',
+  ENS = 'ens',
+  LENS = 'lens'
+}
+
+interface IdentityQuery {
+  provider: string;
+  username: string;
+}
+
 interface Social {
   source: string;
   location: string | null;
@@ -19,6 +33,16 @@ interface DataSources {
   profile_display_name: string;
 }
 
+interface PassportProfile {
+  bio: string;
+  display_name: string;
+  image_url: string;
+  location: string | null;
+  name: string;
+  tags: string[];
+}
+
+
 interface PassportData {
   passport_id: number;
   activity_score: number;
@@ -35,6 +59,7 @@ interface PassportData {
   location: string | null;
   tags: string[];
   data_sources: DataSources;
+  passport_profile?: PassportProfile;
   verified: boolean;
   verified_wallets: string[];
   onchain: boolean;
@@ -105,6 +130,22 @@ const API_CONFIG = {
   },
   CLEANUP_INTERVAL: 60 * 60 * 1000 // 1 hour
 } as const;
+
+
+class BackgroundPlatformService {
+  getIdentityQuery(platform: string, username: string): IdentityQuery {
+    switch (platform) {
+      case 'twitter':
+        return { provider: 'twitter', username };
+      case 'github':
+        return { provider: 'github', username };
+      case 'farcaster':
+        return { provider: 'farcaster', username };
+      default:
+        return { provider: 'twitter', username }; // default fallback
+    }
+  }
+}
 
 // HTTP Client
 class HTTPClient {
@@ -249,6 +290,28 @@ class DataProcessor {
     );
   }
 
+  private getProfileData(passport: PassportData): {
+    bio: string;
+    displayName: string;
+    imageUrl: string;
+  } {
+    // Try to get data from passport_profile first
+    if (passport.passport_profile) {
+      return {
+        bio: passport.passport_profile.bio || '',
+        displayName: passport.passport_profile.display_name || passport.passport_profile.name || '',
+        imageUrl: passport.passport_profile.image_url || ''
+      };
+    }
+
+    // Fallback to original fields
+    return {
+      bio: passport.bio || '',
+      displayName: passport.display_name || passport.profile_name || '',
+      imageUrl: passport.image_url || ''
+    };
+  }
+
   processPassportData(apiResponse: APIResponse): BuilderScoreResponse {
     try {
       if (!apiResponse?.passports?.[0]) {
@@ -280,15 +343,17 @@ class DataProcessor {
         return Math.min(Math.max(Math.round(score), 0), 100);
       };
 
+      const profileData = this.getProfileData(passport);
+
       return {
         success: true,
         data: {
           score: normalizeScore(passport.score),
           verified: Boolean(passport.verified || passport.human_checkmark),
-          displayName: passport.display_name || passport.profile_name || '',
-          bio: passport.bio || '',
-          imageUrl: passport.image_url || '',
-          passport_id: passport.passport_id, 
+          displayName: profileData.displayName,
+          bio: profileData.bio,
+          imageUrl: profileData.imageUrl,
+          passport_id: passport.passport_id,
           socialProfiles,
           skills: {
             activity: normalizeScore(passport.activity_score),
@@ -314,16 +379,20 @@ class BackgroundService {
   private cacheManager: CacheManager;
   private dataProcessor: DataProcessor;
   private pendingRequests: Map<string, Promise<BuilderScoreResponse>>;
+  private platformService: BackgroundPlatformService;
 
   constructor() {
     this.httpClient = new HTTPClient();
     this.cacheManager = new CacheManager();
     this.dataProcessor = new DataProcessor();
-    this.pendingRequests = new Map();
+    this.pendingRequests = new Map(); 
+    this.platformService = new BackgroundPlatformService();   
   }
 
-  async getPassportData(username: string): Promise<BuilderScoreResponse> {
+  async getPassportData(request: { username: string; platform: string }): Promise<BuilderScoreResponse> {
     try {
+      const { username, platform } = request;
+
       // Check for pending request
       const pending = this.pendingRequests.get(username);
       if (pending) {
@@ -337,10 +406,10 @@ class BackgroundService {
       }
 
       // Create new request
-      const request = this.fetchPassportData(username);
-      this.pendingRequests.set(username, request);
+      const requestPromise = this.fetchPassportData(username, platform);
+      this.pendingRequests.set(username, requestPromise);
 
-      const response = await request;
+      const response = await requestPromise;
       this.pendingRequests.delete(username);
 
       if (response.success && response.data) {
@@ -350,7 +419,7 @@ class BackgroundService {
       return response;
 
     } catch (error) {
-      this.pendingRequests.delete(username);
+      this.pendingRequests.delete(request.username);
       console.error('Error in getPassportData:', error);
       return {
         success: false,
@@ -359,10 +428,12 @@ class BackgroundService {
     }
   }
 
-  private async fetchPassportData(username: string): Promise<BuilderScoreResponse> {
+  private async fetchPassportData(username: string, platform: string): Promise<BuilderScoreResponse> {
     try {
+
+      const identityQuery = this.platformService.getIdentityQuery(platform, username);
       const response = await this.httpClient.fetchWithRetry(
-        `${API_CONFIG.BASE_URL}/${encodeURIComponent(username)}`,
+        `${API_CONFIG.BASE_URL}/${encodeURIComponent(username)}?provider=${identityQuery.provider}`,
         {
           method: 'GET',
           headers: {
@@ -396,12 +467,15 @@ const backgroundService = new BackgroundService();
 
 // Chrome extension message listener
 chrome.runtime.onMessage.addListener((
-  request: { type: string; username: string },
+  request: { type: string; username: string; platform: string },
   sender: chrome.runtime.MessageSender,
   sendResponse: (response: BuilderScoreResponse) => void
 ) => {
   if (request.type === 'GET_PASSPORT_DATA') {
-    backgroundService.getPassportData(request.username)
+    backgroundService.getPassportData({
+        username: request.username, 
+        platform: request.platform
+      })
       .then(response => {
         console.log('Sending response:', response);
         sendResponse(response);
