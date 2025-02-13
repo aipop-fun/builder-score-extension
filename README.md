@@ -16,7 +16,7 @@ A powerful Chrome extension that seamlessly integrates Builder Score metrics int
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/aipopfun/builder-score-extension.git
+git clone https://github.com/aipop-fun/builder-score-extension.git
 cd builder-score-extension
 ```
 
