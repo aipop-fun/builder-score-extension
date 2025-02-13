@@ -39,7 +39,7 @@
   "*://*.twitter.com/*",
   "*://*.github.com/*",
   "*://*.warpcast.com/*",
-  "http://talent.aipop.fun/*"
+  "*://*.talent.aipop.fun/*"
   ],
   "content_scripts": [
     {

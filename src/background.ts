@@ -68,6 +68,7 @@ interface BuilderScoreData {
   verified: boolean;
   displayName: string;
   bio: string;
+  passport_id: number;
   imageUrl: string;
   socialProfiles: {
     github?: Social;
@@ -95,7 +96,7 @@ interface CacheEntry {
 
 // Configuration
 const API_CONFIG = {
-  BASE_URL: 'http://talent.aipop.fun/api/passport',
+  BASE_URL: 'https://talent.aipop.fun/api/passport',
   CACHE_DURATION: 24 * 60 * 60 * 1000, // 24 hours
   RATE_LIMIT: {
     DELAY: 5000, // 5 seconds between requests
@@ -140,13 +141,15 @@ class HTTPClient {
     return new Promise((resolve, reject) => {
       const executeRequest = async () => {
         try {
+          const headers = {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          };
+
           const response = await fetch(url, {
             ...options,
-            headers: {
-              ...options.headers,
-              'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache'
-            }
+            headers,
+            mode: 'cors' 
           });
           this.lastRequestTime = Date.now();
 
@@ -285,6 +288,7 @@ class DataProcessor {
           displayName: passport.display_name || passport.profile_name || '',
           bio: passport.bio || '',
           imageUrl: passport.image_url || '',
+          passport_id: passport.passport_id, 
           socialProfiles,
           skills: {
             activity: normalizeScore(passport.activity_score),

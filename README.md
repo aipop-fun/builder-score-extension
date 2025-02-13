@@ -66,7 +66,7 @@ const CONFIG = {
 }
 
 const API_CONFIG = {
-  BASE_URL: 'http://talent.aipop.fun/api/passport',
+  BASE_URL: 'https://talent.aipop.fun/api/passport',
   CACHE_DURATION: 24 * 60 * 60 * 1000,
   // ... other API configurations
 }
