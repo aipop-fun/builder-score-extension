@@ -1,4 +1,4 @@
-// Types
+import { browserAPI } from './utils/browser-api';
 
 enum PlatformType {
   TWITTER = 'twitter',
@@ -460,10 +460,38 @@ class BackgroundService {
       };
     }
   }
+
+
+  init() {
+    browserAPI.runtime.onMessage.addListener(async (
+      request: { type: string; username: string; platform: string },
+      sender: any,
+      sendResponse: (response: BuilderScoreResponse) => void
+    ) => {
+      if (request.type === 'GET_PASSPORT_DATA') {
+        try {
+          const response = await this.getPassportData({
+            username: request.username,
+            platform: request.platform
+          });
+          sendResponse(response);
+        } catch (error) {
+          console.error('Error in background:', error);
+          sendResponse({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error occurred'
+          });
+        }
+      }
+      return true; // Keep message channel open for async response
+    });
+  }
+
 }
 
 // Initialize the background service
 const backgroundService = new BackgroundService();
+backgroundService.init();
 
 // Chrome extension message listener
 chrome.runtime.onMessage.addListener((

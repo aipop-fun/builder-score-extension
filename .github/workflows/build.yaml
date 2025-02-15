@@ -1,0 +1,120 @@
+name: Build Extension
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x]
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Build Chrome extension
+        run: npm run build:chrome
+        env:
+          NODE_ENV: production
+          
+      - name: Build Firefox extension
+        run: npm run build:firefox
+        env:
+          NODE_ENV: production
+          
+      - name: Build Firefox XPI
+        run: npm run build:firefox-xpi
+        
+      - name: Package Chrome extension
+        run: |
+          cd dist/chrome
+          zip -r ../../chrome-extension.zip ./*
+          cd ../..
+          
+      - name: Upload Chrome artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chrome-extension
+          path: chrome-extension.zip
+          
+      - name: Upload Firefox artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-extension
+          path: web-ext-artifacts/*.xpi
+          
+  release:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Download Chrome artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: chrome-extension
+          
+      - name: Download Firefox artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: firefox-extension
+          
+      - name: Get version
+        id: package_version
+        run: |
+          echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+          
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: Release v${{ env.VERSION }}
+          draft: false
+          prerelease: false
+          files: |
+            chrome-extension.zip
+            *.xpi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Install web-ext
+        run: npm install -g web-ext
+        
+      - name: Lint Firefox extension
+        run: |
+          npm run build:firefox
+          web-ext lint -s dist/firefox
