@@ -125,6 +125,20 @@ class PopupComponent {
         }, 200);
     }
 
+    private createAvatar(imageUrl: string, displayName: string): string {
+        // Verificar se a URL da imagem é válida
+        const validImageUrl = imageUrl && imageUrl.startsWith('http') ? imageUrl : 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="%238b5cf6"/><text x="50%" y="50%" fill="white" text-anchor="middle" dy=".3em" font-family="Arial" font-size="16">${displayName.charAt(0).toUpperCase()}</text></svg>';
+
+        return `
+        <div style="flex-shrink: 0; width: 40px; height: 40px; border-radius: 20px; overflow: hidden; background-color: #8b5cf6;">
+            <img src="${validImageUrl}" 
+                 alt="${displayName}" 
+                 style="width: 100%; height: 100%; object-fit: cover;"
+                 onerror="this.style.display='none'; this.parentElement.innerHTML = '<div style=\'width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-size: 16px; font-weight: bold;\'>${displayName.charAt(0).toUpperCase()}</div>';">
+        </div>
+    `;
+    }
+
     private createPopup(): void {
         this.popup = document.createElement('div');
         this.popup.style.cssText = this.baseStyles.popup;
@@ -134,10 +148,7 @@ class PopupComponent {
         this.popup.innerHTML = `
             <div style="${this.baseStyles.header}">
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    <div style="flex-shrink: 0; width: 40px; height: 40px; border-radius: 20px; overflow: hidden;">
-                        <img src="${this.data.imageUrl}" alt="${this.data.displayName}" 
-                             style="width: 100%; height: 100%; object-fit: cover;">
-                    </div>
+                    ${this.createAvatar(this.data.imageUrl, this.data.displayName)}
                     <div>
                         <h3 style="margin: 0; font-size: 16px; font-weight: 600;">
                             ${this.data.displayName}

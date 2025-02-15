@@ -4,7 +4,10 @@ const CopyPlugin = require('copy-webpack-plugin');
 const TerserPlugin = require('terser-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
-module.exports = {
+module.exports = (env) => {
+    const browser = env.browser || 'chrome';
+    
+    return {
     mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
     devtool: 'source-map',
     entry: {
@@ -13,7 +16,7 @@ module.exports = {
         background: './src/background.ts'
     },
     output: {
-        path: path.resolve(__dirname, 'dist'),
+        path: path.resolve(__dirname, `dist/${browser}`),
         filename: '[name].js',
         clean: true
     },
@@ -68,6 +71,10 @@ module.exports = {
         }),
         new CopyPlugin({
             patterns: [
+                {
+                    from: `manifest.${browser}.json`,
+                    to: 'manifest.json'
+                },
                 { from: 'src/manifest.json' },
                 { from: 'src/style/global.css' },
                 { from: 'src/style/styles.css' },
@@ -93,4 +100,5 @@ module.exports = {
             }),
         ],
     },
+}
 }

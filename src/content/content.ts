@@ -1,6 +1,20 @@
 import PopupComponent from "@/components/PopupComponent";
 
 // Types and Interfaces
+
+enum PlatformType {
+    TWITTER = 'twitter',
+    GITHUB = 'github',
+    FARCASTER = 'farcaster',
+    ENS = 'ens',
+    LENS = 'lens'
+}
+
+interface IdentityQuery {
+    provider: string;
+    username: string;
+}
+
 interface PassportData {
     passport_id: string;
     activity_score: number;
@@ -56,14 +70,35 @@ const CONFIG = {
             PROFILE_NAME: 'div[data-testid="UserName"], h2[role="heading"], div[data-testid="UserCell"]',
             DISPLAY_NAME: 'div[dir="ltr"]'
         },
-        WARPCAST: {
-            TAGS: 'div.flex.flex-row.items-center.space-x-2',
-            USERNAME: 'div.text-muted'
+        WARPCAST: {            
+            PROFILE_CONTAINER: '.min-w-0.flex-auto.space-y-3',            
+            USERNAME_CONTAINER: '.flex.flex-row.items-center.justify-between',            
+            USERNAME: '.text-base.text-faint',            
+            BADGE_CONTAINER: '.flex.flex-row.items-center.space-x-2',            
+            STATS_CONTAINER: '.flex.w-full.flex-row.flex-wrap.gap-2'
+        },
+        LINKEDIN: {
+            // Profile page selectors
+            PROFILE_CONTAINER: '[class*="pv-text-details__left-panel"]',
+            PROFILE_NAME: 'h1[class*="text-heading-xlarge"]',
+            BADGE_CONTAINER: 'h1[class*="text-heading-xlarge"]',
+
+            // Profile URL selectors
+            PROFILE_URL: 'a[href*="/in/"]',
+
+            // Feed post selectors (for timeline)
+            FEED_PROFILE_NAME: 'span[class*="feed-shared-actor__name"]',
+            FEED_PROFILE_LINK: 'a[class*="feed-shared-actor__container"]',
+
+            // Search results selectors
+            SEARCH_PROFILE_NAME: 'span[class*="entity-result__title-text"]',
+            SEARCH_PROFILE_LINK: 'a[class*="app-aware-link"]'
         }
     },
     PLATFORMS: {
         TWITTER: 'twitter',
-        WARPCAST: 'warpcast'
+        WARPCAST: 'warpcast',
+        LINKEDIN: 'linkedin'
     }
 } as const;
 
@@ -87,20 +122,68 @@ class Logger {
 }
 
 // Platform Service
-class PlatformService {
+export class PlatformService {
     getCurrentPlatform(): string {
+        if (window.location.hostname.includes('linkedin.com')) {
+            return CONFIG.PLATFORMS.LINKEDIN;
+        }
         return window.location.hostname.includes('warpcast.com')
             ? CONFIG.PLATFORMS.WARPCAST
             : CONFIG.PLATFORMS.TWITTER;
     }
 
+    private getLinkedInUsername(isTestMode: boolean): string | null {
+        if (isTestMode) return 'testUser';
+
+        // Try to get username from URL first
+        const pathname = window.location.pathname;
+        if (pathname.startsWith('/in/')) {
+            const username = pathname.split('/in/')[1]?.split('/')[0];
+            if (username) return username;
+        }
+
+        // Try to get from profile container
+        const profileLink = document.querySelector(CONFIG.SELECTORS.LINKEDIN.PROFILE_URL);
+        if (profileLink && profileLink instanceof HTMLAnchorElement) {
+            const href = profileLink.href;
+            const username = href.split('/in/')[1]?.split('/')[0];
+            if (username) return username;
+        }
+
+        // Try to get from feed or search results
+        const feedLink = document.querySelector(CONFIG.SELECTORS.LINKEDIN.FEED_PROFILE_LINK);
+        if (feedLink && feedLink instanceof HTMLAnchorElement) {
+            const href = feedLink.href;
+            const username = href.split('/in/')[1]?.split('/')[0];
+            if (username) return username;
+        }
+
+        return null;
+    }
+
     getUsername(platform: string, isTestMode: boolean): string | null {
         if (isTestMode) return 'testUser';
 
-        if (platform === CONFIG.PLATFORMS.WARPCAST) {
+        if (platform === CONFIG.PLATFORMS.LINKEDIN) {
+            return this.getLinkedInUsername(isTestMode);
+        }
+
+        if (platform === CONFIG.PLATFORMS.WARPCAST) {            
+            const path = window.location.pathname;
+            const urlUsername = path.split('/').filter(p => p)[0]; 
+            if (urlUsername && !['home', 'explore', 'notifications', 'user'].includes(urlUsername)) {
+                return urlUsername;
+            }
+
+            
             const usernameElement = document.querySelector(CONFIG.SELECTORS.WARPCAST.USERNAME);
-            return usernameElement?.textContent?.trim() || null;
+            if (usernameElement) {
+                const username = usernameElement.textContent?.trim();
+                return username?.startsWith('@') ? username.substring(1) : username;
+            }
+            return null;
         } else {
+            
             const path = window.location.pathname;
             if (!path) return null;
 
@@ -113,14 +196,51 @@ class PlatformService {
     }
 
     getTargetElement(element: Element, platform: string): Element | null {
-        return platform === CONFIG.PLATFORMS.WARPCAST
-            ? element.querySelector(CONFIG.SELECTORS.WARPCAST.TAGS)
-            : element.querySelector(CONFIG.SELECTORS.TWITTER.DISPLAY_NAME);
+
+        if (platform === CONFIG.PLATFORMS.LINKEDIN) {
+            // Check if we're on a profile page
+            const profileName = element.querySelector(CONFIG.SELECTORS.LINKEDIN.PROFILE_NAME);
+            if (profileName) return profileName;
+
+            // Check if we're in feed
+            const feedName = element.querySelector(CONFIG.SELECTORS.LINKEDIN.FEED_PROFILE_NAME);
+            if (feedName) return feedName;
+
+            // Check if we're in search results
+            const searchName = element.querySelector(CONFIG.SELECTORS.LINKEDIN.SEARCH_PROFILE_NAME);
+            if (searchName) return searchName;
+
+            return null;
+        }
+
+        if (platform === CONFIG.PLATFORMS.WARPCAST) {            
+            const badgeContainer = element.querySelector(CONFIG.SELECTORS.WARPCAST.BADGE_CONTAINER);
+            if (badgeContainer) {
+                return badgeContainer;
+            }
+
+            
+            const statsContainer = element.querySelector(CONFIG.SELECTORS.WARPCAST.STATS_CONTAINER);
+            if (statsContainer) {
+                return statsContainer;
+            }
+
+            return null;
+        } else {
+            return element.querySelector(CONFIG.SELECTORS.TWITTER.DISPLAY_NAME);
+        }
     }
 
     getSelector(platform: string): string {
+        if (platform === CONFIG.PLATFORMS.LINKEDIN) {
+            return `
+                ${CONFIG.SELECTORS.LINKEDIN.PROFILE_NAME},
+                ${CONFIG.SELECTORS.LINKEDIN.FEED_PROFILE_NAME},
+                ${CONFIG.SELECTORS.LINKEDIN.SEARCH_PROFILE_NAME}
+            `;
+        }
         return platform === CONFIG.PLATFORMS.WARPCAST
-            ? CONFIG.SELECTORS.WARPCAST.TAGS
+            ? CONFIG.SELECTORS.WARPCAST.PROFILE_CONTAINER
             : CONFIG.SELECTORS.TWITTER.PROFILE_NAME;
     }
 }
@@ -191,6 +311,28 @@ class BadgeUIService {
             transition: 'all 0.2s ease',
             boxShadow: '0 2px 4px rgba(139, 92, 246, 0.2)'
         };
+
+
+        if (platform === CONFIG.PLATFORMS.LINKEDIN) {
+            badge.className = 'builder-score-badge linkedin-badge';
+            Object.assign(badge.style, {
+                ...commonStyles,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                padding: '2px 8px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: '600',
+                marginLeft: '8px',
+                verticalAlign: 'middle',
+                minWidth: '40px',
+                height: '20px',
+                lineHeight: '1.5',
+                fontFamily: '-apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial'
+            });
+        }
 
         if (platform === 'warpcast') {
             badge.className += ' flex w-max flex-row items-center space-x-1 rounded-full px-2 py-1 text-sm';
@@ -358,7 +500,7 @@ class BuilderScoreController {
 
         return new Promise((resolve) => {
             chrome.runtime.sendMessage(
-                { type: 'GET_PASSPORT_DATA', username },
+                { type: 'GET_PASSPORT_DATA', username, platform: this.platformService.getCurrentPlatform() },
                 (response: BuilderScoreResponse) => {
                     if (!response) {
                         resolve({
