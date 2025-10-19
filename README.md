@@ -4,13 +4,15 @@ A powerful Chrome extension that seamlessly integrates Builder Score metrics int
 
 ## Features
 
-- **Real-time Score Display**: Automatically displays Builder Scores on Twitter and Warpcast profiles
+- **Real-time Score Display**: Automatically displays Builder Scores on Twitter and Farcaster profiles
 - **Interactive Badges**: Clickable badges showing detailed builder metrics
 - **Score Verification**: Visual indication of verified builder accounts
 - **Profile Analytics**: Comprehensive view of builder activity, identity, and skills scores
-- **Social Integration**: Support for multiple platforms (Twitter, Warpcast) with platform-specific UI adaptations
+- **Social Integration**: Support for multiple platforms (Twitter, Farcaster) with platform-specific UI adaptations
 - **Caching System**: Efficient data management with 24-hour cache duration
 - **Rate Limiting**: Smart request handling with automatic retries and rate limit management
+- **WalletConnect Integration**: Secure wallet connection via WalletConnect AppKit
+- **One-Click Tipping**: Simple and intuitive tipping interface
 
 ## Installation
 
@@ -59,7 +61,7 @@ The extension uses several configuration objects that can be modified in the sou
 
 ```typescript
 const CONFIG = {
-  DEBUG: true,
+DEBUG: true,
   MUTATION_DEBOUNCE: 500,
   BADGE_UPDATE_COOLDOWN: 2000,
   // ... other configurations
@@ -109,6 +111,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Author
 
 - [codingsh](https://twitter.com/codingsh)
+
 
 ## Acknowledgments
 

@@ -1,0 +1,104 @@
+/* GitHub Specific Styles */
+
+.tip-builder-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 16px;
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(139, 92, 246, 0.2);
+}
+
+.tip-builder-button:hover {
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(139, 92, 246, 0.3);
+}
+
+.tip-builder-button:active {
+  transform: translateY(0);
+}
+
+.tip-builder-button svg {
+  flex-shrink: 0;
+}
+
+/* Builder Score Badge on GitHub */
+.builder-score-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 8px;
+  padding: 2px 8px;
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+  color: white;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  vertical-align: middle;
+  box-shadow: 0 2px 4px rgba(139, 92, 246, 0.2);
+}
+
+/* Wallet Connect Button Customization */
+w3m-button {
+  --w3m-accent: #8b5cf6 !important;
+  --w3m-color-mix: #7c3aed !important;
+}
+
+/* Tip Modal Overlay */
+#tip-modal-root {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 999999;
+}
+
+/* GitHub Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .tip-builder-button {
+    box-shadow: 0 2px 4px rgba(139, 92, 246, 0.4);
+  }
+  
+  .tip-builder-button:hover {
+    box-shadow: 0 4px 8px rgba(139, 92, 246, 0.5);
+  }
+}
+
+/* Animation for button appearance */
+@keyframes fadeInSlide {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.tip-builder-button {
+  animation: fadeInSlide 0.3s ease-out;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .tip-builder-button {
+    padding: 5px 12px;
+    font-size: 13px;
+  }
+  
+  .tip-builder-button svg {
+    width: 14px;
+    height: 14px;
+  }
+}

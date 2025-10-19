@@ -10,12 +10,15 @@ module.exports = {
     entry: {
         popup: './src/popup/index.tsx',
         content: './src/content/content.ts',
+        github: './src/content/github.ts',
         background: './src/background.ts'
     },
     output: {
         path: path.resolve(__dirname, 'dist'),
         filename: '[name].js',
-        clean: true
+        chunkFilename: 'chunks/[name].[contenthash:8].js',
+        clean: true,
+        publicPath: ''
     },
     module: {
         rules: [
@@ -26,7 +29,7 @@ module.exports = {
                     options: {
                         transpileOnly: true,
                         compilerOptions: {
-                            noEmit: true
+                            noEmit: false
                         }
                     }
                 }],
@@ -55,11 +58,27 @@ module.exports = {
             'style': path.resolve(__dirname, 'src/style'),
             'services': path.resolve(__dirname, 'src/services'),
             'types': path.resolve(__dirname, 'src/types'),
-            'config': path.resolve(__dirname, 'src/config')
+            'config': path.resolve(__dirname, 'src/config'),
+            'components': path.resolve(__dirname, 'src/components')
+        },
+        fallback: {
+            "crypto": false,
+            "stream": false,
+            "assert": false,
+            "http": false,
+            "https": false,
+            "os": false,
+            "url": false,
+            "zlib": false,
+            "buffer": false
         }
     },
     plugins: [
-        new Dotenv({ systemvars: true, safe: true }),
+        new Dotenv({ 
+            systemvars: true,
+            silent: true,
+            defaults: false
+        }),
         new HtmlWebpackPlugin({
             template: './src/popup/popup.html',
             filename: 'popup.html',
@@ -71,9 +90,10 @@ module.exports = {
                 { from: 'src/manifest.json' },
                 { from: 'src/style/global.css' },
                 { from: 'src/style/styles.css' },
+                { from: 'src/style/github.css' },
                 { from: 'src/popup/popup.css' },
-                { from: 'public/icons', to: 'icons' },
-                { from: 'img/', to: 'img' }
+                { from: 'public/icons', to: 'icons', noErrorOnMissing: true },
+                { from: 'img/', to: 'img', noErrorOnMissing: true }
             ]
         })
     ],
@@ -92,5 +112,51 @@ module.exports = {
                 extractComments: false,
             }),
         ],
+        splitChunks: {
+            chunks: 'async',
+            cacheGroups: {
+                vendor: {
+                    test: /[\\/]node_modules[\\/]/,
+                    name: 'vendors',
+                    chunks: 'async',
+                    priority: 10
+                },
+                common: {
+                    minChunks: 2,
+                    priority: 5,
+                    reuseExistingChunk: true,
+                    name: 'common'
+                }
+            }
+        },
+        runtimeChunk: false
     },
+    ignoreWarnings: [
+        {
+            module: /node_modules\/@metamask\/sdk/,
+        },
+        {
+            module: /node_modules\/@reown/,
+        },
+        {
+            module: /node_modules\/@walletconnect/,
+        },
+        {
+            message: /Critical dependency: the request of a dependency is an expression/,
+        },
+        {
+            message: /Can't resolve 'pino-pretty'/,
+        },
+        {
+            message: /Can't resolve 'lokijs'/,
+        },
+        {
+            message: /Can't resolve 'encoding'/,
+        },
+    ],
+    performance: {
+        hints: false,
+        maxEntrypointSize: 512000,
+        maxAssetSize: 512000
+    }
 }
