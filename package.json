@@ -1,15 +1,18 @@
 {
   "name": "builder-score-extension",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "author": "codingsh",
-  "description": "Chrome extension to replace addresses with Farcaster names on DexScreener",
+  "description": "Chrome extension to display Builder Scores and enable tipping on GitHub",
   "scripts": {
     "build": "webpack --config webpack.config.js",
     "dev": "webpack --config webpack.config.js --watch"
   },
   "dependencies": {
     "@radix-ui/react-switch": "^1.1.1",
+    "@reown/appkit": "1.8.10",
+    "@reown/appkit-adapter-wagmi": "1.8.10",
     "@supabase/supabase-js": "^2.48.1",
+    "@tanstack/react-query": "^5.17.0",
     "autoprefix": "^1.0.1",
     "class-variance-authority": "^0.7.1",
     "dotenv": "^16.0.3",
@@ -17,9 +20,12 @@
     "html-webpack-plugin": "^5.6.3",
     "lucide-react": "^0.475.0",
     "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "terser-webpack-plugin": "^5.3.10",
+    "viem": "^2.21.0",
+    "wagmi": "^2.12.0",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
